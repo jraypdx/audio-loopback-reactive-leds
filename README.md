@@ -10,6 +10,10 @@ This project is two parts:
 
 So far it is very basic and I've just been using a 9-LED test strip
 
+DEPENDENCIES:
+ - C# (nuget): NAudio.Core, NAudio.Wasapi, MathNet.Numerics
+ - Python (pip): numpy, rpi_ws281x, adafruiot-circuitpython-neopixel, adafruit-blinka
+
 TODO:
  - GUI to select loopback device (if needed?)
  - Various types of reactive patterns in the Python script to choose from

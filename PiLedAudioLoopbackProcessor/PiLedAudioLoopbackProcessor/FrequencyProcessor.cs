@@ -46,6 +46,7 @@ namespace PiLedAudioLoopbackProcessor
 
             // start audio capture
             var capture = new WasapiLoopbackCapture();
+            //Console.WriteLine(capture.)
 
             capture.DataAvailable += DataAvailable;
 
@@ -77,7 +78,7 @@ namespace PiLedAudioLoopbackProcessor
                 if (smooth.Count > vertical_smoothness)
                     smooth.RemoveAt(0);
             }
-            FrequencySplitter.ProcessBins(values.Select(x => x.Magnitude).ToArray());
+            FrequencySplitter.ProcessBins_RING(values.Select(x => x.Magnitude).ToArray());
             //Draw();
             //foreach (var ts in toSend)
             //{
@@ -171,7 +172,7 @@ namespace PiLedAudioLoopbackProcessor
                 }
             }
 
-            FrequencySplitter.ProcessBins(toSend);
+            FrequencySplitter.ProcessBins_RING(toSend);
         }
     }
 }

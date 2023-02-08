@@ -10,8 +10,49 @@ namespace PiLedAudioLoopbackProcessor
     static class FrequencySplitter
     {
         public static double[] processed = new double[9];
+        public static double[] processed_ring = new double[24];
         public static double[] lastProcessed = new double[9];
+        public static double[] lastProcessed_ring = new double[24];
+        public static double peak = 5.0;
         public static UdpClient udpClient = new UdpClient();
+
+        public static void ProcessBins_RING(double[] toSplit)
+        {
+            int counter = 0;
+            for (int i = 0; i < 31; i++)
+            {
+                if (i >= 16)
+                {
+                    processed_ring[counter] = (toSplit[i] + toSplit[i + 1]) * 0.5;
+                    i++;
+                }
+                else
+                    processed_ring[counter] = toSplit[i];
+                counter++;
+            }
+
+            double inverseMax = 1 / processed_ring.Max();
+            if (processed_ring.Max() > peak)
+                peak = processed_ring.Max();
+            else
+                peak *= 0.85;
+            double inversePeak = 1 / peak;
+
+            for (int i = 0; i < 9; i++)
+            {
+                processed_ring[i] = processed_ring[i] *= inversePeak;
+                if (processed_ring[i] > 1.0)
+                {
+                    Console.WriteLine(i + "   " + processed_ring[i]);
+                    processed_ring[i] = 1.0;
+                }
+                else if (processed_ring[i] < lastProcessed_ring[i])
+                    processed_ring[i] = lastProcessed_ring[i] *= 0.75;
+            }
+            
+            lastProcessed_ring = processed_ring;
+            SendBins(processed_ring);
+        }
 
         public static void ProcessBins(double[] toSplit)
         {
@@ -37,30 +78,42 @@ namespace PiLedAudioLoopbackProcessor
             processed[8] = (toSplit.Skip(22).Take(10)).Average();
             //Console.WriteLine(processed[8]);
 
-            double inverseMax = 1 / processed.Max();
+            //double inverseMax = 1 / processed.Max();
             //for (int i = 0; i < 9; i++)
             //{
             //    processed[i] = Math.Pow((processed[i] * 0.5) + (processed[i] * 0.5 * inverseMax), 0.9);
             //}
             //inverseMax = 1 / processed.Max();
-            for (int i = 0; i < 9; i++)
-            {
-                processed[i] *= inverseMax;
-            }
+            //for (int i = 0; i < 9; i++)
+            //{
+            //    processed[i] *= inverseMax;
+            //}
+
+            if (processed.Max() > peak)
+                peak = processed.Max();
+            else
+                peak *= 0.95;
+
+            double inversePeak = 1 / peak;
+            //for (int i = 0; i < 9; i++)
+            //{
+            //    processed[i] = processed[i] *= inversePeak;
+            //}
 
             for (int i = 0; i < 9; i++)
             {
+                processed[i] = processed[i] *= inversePeak;
                 if (processed[i] > 1.0)
                 {
                     Console.WriteLine(i + "   " + processed[i]);
                     processed[i] = 1.0;
                 }
-                else if (processed[i] < 0.1)
-                {
-                    processed[i] = lastProcessed[i] * 0.9;
-                }
+                //else if (processed[i] < 0.1)
+                //{
+                //    processed[i] = lastProcessed[i] * 0.9;
+                //}
                 else if (processed[i] < lastProcessed[i])
-                    processed[i] *= 0.5;
+                    processed[i] = lastProcessed[i] *= 0.9;
             }
 
             //debugging print

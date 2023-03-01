@@ -12,7 +12,7 @@ So far it is very basic and I've just been using a 9-LED test strip
 
 DEPENDENCIES:
  - C# (nuget): NAudio.Core, NAudio.Wasapi, MathNet.Numerics
- - Python (pip): numpy, rpi_ws281x, adafruiot-circuitpython-neopixel, adafruit-blinka
+ - Python (pip): numpy, rpi_ws281x, adafruit-circuitpython-neopixel, adafruit-blinka
 
 TODO:
  - GUI to select loopback device (if needed?)

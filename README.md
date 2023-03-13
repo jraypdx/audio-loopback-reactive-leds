@@ -19,4 +19,5 @@ TODO:
  - Various types of reactive patterns in the Python script to choose from
  - Clean up and comment code
  - Try out getting it to work by capturing audio output from a virtual loopback device on Apple Macs
+ - Arduino implementation via serial (WIP)
  

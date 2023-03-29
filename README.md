@@ -21,3 +21,6 @@ TODO:
  - Try out getting it to work by capturing audio output from a virtual loopback device on Apple Macs
  - Arduino implementation via serial (WIP)
  
+ Demo gif of LEDs in action and mostly assembled, running off the Arduino implementation over USB-C:
+ 
+![Alt Text](https://github.com/jraypdx/audio-loopback-reactive-leds/blob/main/leds-early-demo.gif)

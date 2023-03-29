@@ -53,46 +53,46 @@ const uint8_t buflen = 24;  // * 4;
 char buf[buflen];
 char emptyArr[buflen] = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0}; // Empty array for 'quick' comparison with our input buffer from serial
 uint16_t waitHue = 0; // Hue of "first pixel" to call rainbow function that we can increment while waiting for the serial connection
-uint8_t waitBrightness = 150;
+uint8_t waitBrightness = 0;
 uint8_t emptyCount = 0; // # of times we've gotten empty data from serial
+uint16_t noSerialCount = 0; // # of times in a row there hasn't been serial data available - seems to be about 1/2 of the time the loop goes through, but will shoot up when serial connection is broken
 // uint8_t waitBrightness = 255;
 // bool waitFalling = true;
 
 
 // setup() function -- runs once at startup --------------------------------
-
 void setup() {
   pinMode(LED_BUILTIN, OUTPUT); // Built-in LED I want to turn off to try saving a bit of power
   pinMode(PIN_LED2, OUTPUT);
   pinMode(PIN_LED3, OUTPUT);
   digitalWrite(LED_BUILTIN, HIGH);
 
-  strip.begin();           // INITIALIZE NeoPixel strip object (REQUIRED)
-  strip.show();            // Turn OFF all pixels ASAP
-  strip.setBrightness(35); // Set BRIGHTNESS to about 1/5 (max = 255)
+  strip.begin();
+  strip.show();
+  strip.setBrightness(25); // Set BRIGHTNESS to about 1/5 (max = 255)
   strip_2.begin();
   strip_2.show();
   strip_2.setBrightness(75);
   Serial.begin(115200);
   while (!Serial) {
-    waitingRainbow();
+    waitingRainbow(256);
   }
 }
 
 
 // loop() function -- runs repeatedly as long as board is on ---------------
-
 void loop() {
   if (Serial.available() >= buflen) {
+    noSerialCount = 0;
     int rlen = Serial.readBytes(buf, buflen);
     digitalWrite(PIN_LED2, HIGH); // High = off, basically just keep the serial LEDs from turning on
     digitalWrite(PIN_LED3, HIGH);
     if (memcmp(buf, emptyArr, buflen) == 0) {
-      if (emptyCount > 10) {
-        waitingRainbow();
+      if (emptyCount > 8) {
+        waitingRainbow(1024);
       }
       else {
-        if (emptyCount == 1) { // In case any pixels got stuck, like if music was paused - wait a few frames then clear
+        if (emptyCount == 2) { // In case any pixels got stuck, like if music was paused - wait a few frames then clear
           strip.clear();
           strip.show();
           strip_2.clear();
@@ -102,27 +102,36 @@ void loop() {
       }
     }
     else {
-        emptyCount = 0;
-        waitBrightness = 0;
-        eqVisualizeRings();
-        eqVisualizeOuter();  // Map and set the outer 60-pixel LED strip that is taped around the outer edges of controller
-      }
+      emptyCount = 0;
+      waitBrightness = 0;
+      eqVisualize();
+    }
+  }
+  else {
+    if (noSerialCount > 40000) { // If serial connection is closed, show rainbow - apparently this loops goes through A LOT of iterations in between empty serial buffers lmao (probably due to loopback audio limitations in Windows)
+      waitingRainbow(128);      
+    }
+    else {
+      noSerialCount++;
+    }
   }
 }
 
-void waitingRainbow() {
+void waitingRainbow(uint16_t change) {
   if (waitBrightness < 150) {
-    waitBrightness += 15;
+    waitBrightness += 10;
   }
   strip.rainbow(waitHue, 5, 255, waitBrightness, true);  //Serial.print("A");  // wait for serial port to connect. Needed for native USB port only
   strip.show();
   strip_2.rainbow(waitHue, 1, 255, waitBrightness, true);
   strip_2.show();
-  waitHue -= 256;
+  waitHue -= change;
 }
 
 
-void eqVisualizeOuter() {
+
+// Maps the 24 bins to the two 48-LED rings, 119 pixels of strip pieces, and 60-LED outer ring
+void eqVisualize() {
   uint8_t r = 0;
   uint8_t g = 0;
   uint8_t b = 0;
@@ -130,328 +139,455 @@ void eqVisualizeOuter() {
   for (int i = 0; i < buflen; i++) {
     float v = buf[i] / 255.0;
 
-    if (i == 23) {
+    if (i == 0) {
       r = (uint8_t)(v * 255.0);
-      b = (uint8_t)(v * 255.0);
-      strip_2.setPixelColor(29, r, g, b);
+      g = 0;
+      b = 0;
+      strip.setPixelColor(36, r, g, b);         // Right ring
+      strip.setPixelColor(95 - 36, r, g, b);    // Left ring
+      
+      strip.setPixelColor(95 + 1, r, g, b);     // Top left strip on left side
+      strip.setPixelColor(95 + 2, r, g, b);
+      strip.setPixelColor(95 + 47, r, g, b);    // Top right of strip on left side
+      strip.setPixelColor(95 + 48, r, g, b);
+      strip.setPixelColor(95 + 72, r, g, b);    // Top left strip on right side
+      strip.setPixelColor(95 + 73, r, g, b);
+      strip.setPixelColor(95 + 118, r, g, b);   // Top right strip on right side
+      strip.setPixelColor(95 + 119, r, g, b);
+      
+      strip.setPixelColor(95 + 49, r, g, b);    // Left strip of top middle
+      strip.setPixelColor(95 + 71, r, g, b);    // Right strip of top middle
+      
+      strip_2.setPixelColor(29, r, g, b);       // Outer ring
       strip_2.setPixelColor(30, r, g, b);
     }
-
-    else if (i == 22) {
-      r = (uint8_t)(v * 220.0);
-      b = (uint8_t)(v * 255.0);
+    else if (i == 1) {
+      r = (uint8_t)(v * 255.0);
+      g = (uint8_t)(v * 60.0);
+      b = 0;
+      strip.setPixelColor(35, r, g, b);
+      strip.setPixelColor(37, r, g, b);
+      strip.setPixelColor(95 - 35, r, g, b);
+      strip.setPixelColor(95 - 37, r, g, b);
+      
+      strip.setPixelColor(95 + 3, r, g, b);
+      strip.setPixelColor(95 + 46, r, g, b);
+      strip.setPixelColor(95 + 74, r, g, b);
+      strip.setPixelColor(95 + 117, r, g, b);
+      
+      strip.setPixelColor(95 + 50, r, g, b);
+      strip.setPixelColor(95 + 70, r, g, b);
+      
       strip_2.setPixelColor(28, r, g, b);
       strip_2.setPixelColor(31, r, g, b);
     }
-
-    else if (i == 21) {
-      r = (uint8_t)(v * 185.0);
-      b = (uint8_t)(v * 255.0);
+    else if (i == 2) {
+      r = (uint8_t)(v * 255.0);
+      g = (uint8_t)(v * 90.0);
+      b = 0;
+      strip.setPixelColor(34, r, g, b);
+      strip.setPixelColor(38, r, g, b);
+      strip.setPixelColor(95 - 34, r, g, b);
+      strip.setPixelColor(95 - 38, r, g, b);
+      
+      strip.setPixelColor(95 + 4, r, g, b);
+      strip.setPixelColor(95 + 45, r, g, b);
+      strip.setPixelColor(95 + 75, r, g, b);
+      strip.setPixelColor(95 + 116, r, g, b);
+      
+      strip.setPixelColor(95 + 51, r, g, b);
+      strip.setPixelColor(95 + 69, r, g, b);
+      
       strip_2.setPixelColor(27, r, g, b);
       strip_2.setPixelColor(32, r, g, b);
     }
-
-    else if (i == 20) {
-      r = (uint8_t)(v * 150.0);
-      b = (uint8_t)(v * 255.0);
+    else if (i == 3) {
+      r = (uint8_t)(v * 255.0);
+      g = (uint8_t)(v * 130.0);
+      b = 0;
+      strip.setPixelColor(33, r, g, b);
+      strip.setPixelColor(39, r, g, b);
+      strip.setPixelColor(95 - 33, r, g, b);
+      strip.setPixelColor(95 - 39, r, g, b);
+      
+      strip.setPixelColor(95 + 5, r, g, b);
+      strip.setPixelColor(95 + 44, r, g, b);
+      strip.setPixelColor(95 + 76, r, g, b);
+      strip.setPixelColor(95 + 115, r, g, b);
+      
+      strip.setPixelColor(95 + 52, r, g, b);
+      strip.setPixelColor(95 + 68, r, g, b);
+      
       strip_2.setPixelColor(26, r, g, b);
       strip_2.setPixelColor(33, r, g, b);
     }
-
-    else if (i == 19) {
-      r = (uint8_t)(v * 125.0);
-      b = (uint8_t)(v * 255.0);
+    else if (i == 4) {
+      r = (uint8_t)(v * 255.0);
+      g = (uint8_t)(v * 170.0);
+      b = 0;
+      strip.setPixelColor(32, r, g, b);
+      strip.setPixelColor(40, r, g, b);
+      strip.setPixelColor(95 - 32, r, g, b);
+      strip.setPixelColor(95 - 40, r, g, b);
+      
+      strip.setPixelColor(95 + 6, r, g, b);
+      strip.setPixelColor(95 + 43, r, g, b);
+      strip.setPixelColor(95 + 77, r, g, b);
+      strip.setPixelColor(95 + 114, r, g, b);
+      
+      strip.setPixelColor(95 + 53, r, g, b);
+      strip.setPixelColor(95 + 67, r, g, b);
+      
       strip_2.setPixelColor(25, r, g, b);
       strip_2.setPixelColor(34, r, g, b);
     }
-
-    else if (i == 18) {
-      r = (uint8_t)(v * 90.0);
-      b = (uint8_t)(v * 255.0);
+    else if (i == 5) {
+      r = (uint8_t)(v * 255.0);
+      g = (uint8_t)(v * 190.0);
+      b = 0;
+      strip.setPixelColor(31, r, g, b);
+      strip.setPixelColor(41, r, g, b);
+      strip.setPixelColor(95 - 31, r, g, b);
+      strip.setPixelColor(95 - 41, r, g, b);
+      
+      strip.setPixelColor(95 + 7, r, g, b);
+      strip.setPixelColor(95 + 42, r, g, b);
+      strip.setPixelColor(95 + 78, r, g, b);
+      strip.setPixelColor(95 + 113, r, g, b);
+      
+      strip.setPixelColor(95 + 54, r, g, b);
+      strip.setPixelColor(95 + 66, r, g, b);
+      
       strip_2.setPixelColor(24, r, g, b);
       strip_2.setPixelColor(35, r, g, b);
     }
-
-    else if (i == 17) {
-      r = (uint8_t)(v * 55.0);
-      b = (uint8_t)(v * 255.0);
-      strip_2.setPixelColor(23, r, g, b);
-      strip_2.setPixelColor(36, r, g, b);
-    }
-
-    else if (i == 16) {
-      r = 0;
-      b = (uint8_t)(v * 255.0);
-      strip_2.setPixelColor(22, r, g, b);
-      strip_2.setPixelColor(37, r, g, b);
-    }
-
-    else if (i == 15) {
-      g = (uint8_t)(v * 200.0);
-      b = (uint8_t)(v * 255.0);
-      strip_2.setPixelColor(21, r, g, b);
-      strip_2.setPixelColor(38, r, g, b);
-    }
-
-    else if (i == 14) {
-      g = (uint8_t)(v * 255.0);
-      b = (uint8_t)(v * 200.0);
-      strip_2.setPixelColor(20, r, g, b);
-      strip_2.setPixelColor(39, r, g, b);
-    }
-
-    else if (i == 13) {
-      g = (uint8_t)(v * 255.0);
-      b = (uint8_t)(v * 165.0);
-      strip_2.setPixelColor(19, r, g, b);
-      strip_2.setPixelColor(40, r, g, b);
-    }
-
-    else if (i == 12) {
-      g = (uint8_t)(v * 255.0);
-      b = (uint8_t)(v * 130.0);
-      strip_2.setPixelColor(18, r, g, b);
-      strip_2.setPixelColor(41, r, g, b);
-    }
-
-    else if (i == 11) {
-      g = (uint8_t)(v * 255.0);
-      b = (uint8_t)(v * 95.0);
-      strip_2.setPixelColor(17, r, g, b);
-      strip_2.setPixelColor(42, r, g, b);
-    }
-
-    else if (i == 10) {
-      g = (uint8_t)(v * 255.0);
-      b = (uint8_t)(v * 60.0);
-      strip_2.setPixelColor(16, r, g, b);
-      strip_2.setPixelColor(43, r, g, b);
-    }
-
-    else if (i == 9) {
-      g = (uint8_t)(v * 255.0);
-      b = (uint8_t)(v * 25.0);
-      strip_2.setPixelColor(15, r, g, b);
-      strip_2.setPixelColor(44, r, g, b);
-    }
-
-    else if (i == 8) {
-      g = (uint8_t)(v * 255.0);
-      b = 0;
-      strip_2.setPixelColor(14, r, g, b);
-      strip_2.setPixelColor(45, r, g, b);
-    }
-
-    else if (i == 7) {
-      r = (uint8_t)(v * 255.0);
-      g = (uint8_t)(v * 255.0);
-      strip_2.setPixelColor(13, r, g, b);
-      strip_2.setPixelColor(46, r, g, b);
-    }
-
     else if (i == 6) {
       r = (uint8_t)(v * 255.0);
       g = (uint8_t)(v * 220.0);
+      b = 0;
+      strip.setPixelColor(30, r, g, b);
+      strip.setPixelColor(42, r, g, b);
+      strip.setPixelColor(95 - 30, r, g, b);
+      strip.setPixelColor(95 - 42, r, g, b);
+      
+      strip.setPixelColor(95 + 8, r, g, b);
+      strip.setPixelColor(95 + 9, r, g, b);
+      strip.setPixelColor(95 + 40, r, g, b);
+      strip.setPixelColor(95 + 41, r, g, b);
+      strip.setPixelColor(95 + 79, r, g, b);
+      strip.setPixelColor(95 + 80, r, g, b);
+      strip.setPixelColor(95 + 111, r, g, b);
+      strip.setPixelColor(95 + 112, r, g, b);
+      
+      strip.setPixelColor(95 + 55, r, g, b);
+      strip.setPixelColor(95 + 65, r, g, b);
+      
+      strip_2.setPixelColor(23, r, g, b);
+      strip_2.setPixelColor(36, r, g, b);
+    }
+    else if (i == 7) {
+      r = (uint8_t)(v * 255.0);
+      g = (uint8_t)(v * 255.0);
+      b = 0;
+      strip.setPixelColor(29, r, g, b);
+      strip.setPixelColor(43, r, g, b);
+      strip.setPixelColor(95 - 29, r, g, b);
+      strip.setPixelColor(95 - 43, r, g, b);
+      
+      strip.setPixelColor(95 + 56, r, g, b);
+      strip.setPixelColor(95 + 64, r, g, b);
+      
+      strip_2.setPixelColor(22, r, g, b);
+      strip_2.setPixelColor(37, r, g, b);
+    }
+    else if (i == 8) {
+      r = 0;
+      g = (uint8_t)(v * 255.0);
+      b = 0;
+      strip.setPixelColor(28, r, g, b);
+      strip.setPixelColor(44, r, g, b);
+      strip.setPixelColor(95 - 28, r, g, b);
+      strip.setPixelColor(95 - 44, r, g, b);
+      
+      strip.setPixelColor(95 + 57, r, g, b);
+      strip.setPixelColor(95 + 63, r, g, b);
+      
+      strip_2.setPixelColor(21, r, g, b);
+      strip_2.setPixelColor(38, r, g, b);
+    }
+    else if (i == 9) {
+      r = 0;
+      g = (uint8_t)(v * 255.0);
+      b = (uint8_t)(v * 40.0);
+      strip.setPixelColor(27, r, g, b);
+      strip.setPixelColor(45, r, g, b);
+      strip.setPixelColor(95 - 27, r, g, b);
+      strip.setPixelColor(95 - 45, r, g, b);
+      
+      strip.setPixelColor(95 + 58, r, g, b);
+      strip.setPixelColor(95 + 62, r, g, b);
+      
+      strip_2.setPixelColor(20, r, g, b);
+      strip_2.setPixelColor(39, r, g, b);
+    }
+    else if (i == 10) {
+      r = 0;
+      g = (uint8_t)(v * 255.0);
+      b = (uint8_t)(v * 80.0);
+      strip.setPixelColor(26, r, g, b);
+      strip.setPixelColor(46, r, g, b);
+      strip.setPixelColor(95 - 26, r, g, b);
+      strip.setPixelColor(95 - 46, r, g, b);
+      
+      strip.setPixelColor(95 + 59, r, g, b);
+      strip.setPixelColor(95 + 61, r, g, b);
+      
+      strip_2.setPixelColor(19, r, g, b);
+      strip_2.setPixelColor(40, r, g, b);
+    }
+    else if (i == 11) {
+      r = 0;
+      g = (uint8_t)(v * 255.0);
+      b = (uint8_t)(v * 120.0);
+      strip.setPixelColor(25, r, g, b);
+      strip.setPixelColor(47, r, g, b);
+      strip.setPixelColor(95 - 25, r, g, b);
+      strip.setPixelColor(95 - 47, r, g, b);
+      
+      strip.setPixelColor(95 + 60, r, g, b);
+      
+      strip_2.setPixelColor(18, r, g, b);
+      strip_2.setPixelColor(41, r, g, b);
+    }
+    else if (i == 12) {
+      r = 0;
+      g = (uint8_t)(v * 255.0);
+      b = (uint8_t)(v * 160.0);
+      strip.setPixelColor(24, r, g, b);
+      strip.setPixelColor(0, r, g, b);
+      strip.setPixelColor(95 - 24, r, g, b);
+      strip.setPixelColor(95 - 0, r, g, b);
+      
+      strip_2.setPixelColor(17, r, g, b);
+      strip_2.setPixelColor(42, r, g, b);
+    }
+    else if (i == 13) {
+      r = 0;
+      g = (uint8_t)(v * 255.0);
+      b = (uint8_t)(v * 195.0);
+      strip.setPixelColor(23, r, g, b);
+      strip.setPixelColor(1, r, g, b);
+      strip.setPixelColor(95 - 23, r, g, b);
+      strip.setPixelColor(95 - 1, r, g, b);
+      
+      strip_2.setPixelColor(16, r, g, b);
+      strip_2.setPixelColor(43, r, g, b);
+    }
+    else if (i == 14) {
+      r = 0;
+      g = (uint8_t)(v * 255.0);
+      b = (uint8_t)(v * 225.0);
+      strip.setPixelColor(22, r, g, b);
+      strip.setPixelColor(2, r, g, b);
+      strip.setPixelColor(95 - 22, r, g, b);
+      strip.setPixelColor(95 - 2, r, g, b);
+      
+      strip_2.setPixelColor(15, r, g, b);
+      strip_2.setPixelColor(44, r, g, b);
+    }
+    else if (i == 15) {
+      r = 0;
+      g = (uint8_t)(v * 255.0);
+      b = (uint8_t)(v * 255.0);
+      strip.setPixelColor(21, r, g, b);
+      strip.setPixelColor(3, r, g, b);
+      strip.setPixelColor(95 - 21, r, g, b);
+      strip.setPixelColor(95 - 3, r, g, b);
+      
+      strip_2.setPixelColor(14, r, g, b);
+      strip_2.setPixelColor(45, r, g, b);
+    }
+    else if (i == 16) {
+      r = 0;
+      g = 0;
+      b = (uint8_t)(v * 255.0);
+      strip.setPixelColor(20, r, g, b);
+      strip.setPixelColor(4, r, g, b);
+      strip.setPixelColor(95 - 20, r, g, b);
+      strip.setPixelColor(95 - 4, r, g, b);
+      
+      strip_2.setPixelColor(13, r, g, b);
+      strip_2.setPixelColor(46, r, g, b);
+    }
+    else if (i == 17) {
+      r = (uint8_t)(v * 60.0);
+      g = 0;
+      b = (uint8_t)(v * 255.0);
+      strip.setPixelColor(19, r, g, b);
+      strip.setPixelColor(5, r, g, b);
+      strip.setPixelColor(95 - 19, r, g, b);
+      strip.setPixelColor(95 - 5, r, g, b);
+
+      strip.setPixelColor(95 + 10, r, g, b);
+      strip.setPixelColor(95 + 11, r, g, b);
+      strip.setPixelColor(95 + 25, r, g, b);
+      strip.setPixelColor(95 + 26, r, g, b);
+      strip.setPixelColor(95 + 81, r, g, b);
+      strip.setPixelColor(95 + 82, r, g, b);
+      strip.setPixelColor(95 + 96, r, g, b);
+      strip.setPixelColor(95 + 97, r, g, b);
+      
       strip_2.setPixelColor(12, r, g, b);
       strip_2.setPixelColor(47, r, g, b);
     }
+    else if (i == 18) {
+      r = (uint8_t)(v * 100.0);
+      g = 0;
+      b = (uint8_t)(v * 255.0);
+      strip.setPixelColor(18, r, g, b);
+      strip.setPixelColor(6, r, g, b);
+      strip.setPixelColor(95 - 18, r, g, b);
+      strip.setPixelColor(95 - 6, r, g, b);
 
-    else if (i == 5) {
-      r = (uint8_t)(v * 255.0);
-      g = (uint8_t)(v * 185.0);
+      strip.setPixelColor(95 + 12, r, g, b);
+      strip.setPixelColor(95 + 13, r, g, b);
+      strip.setPixelColor(95 + 27, r, g, b);
+      strip.setPixelColor(95 + 28, r, g, b);
+      strip.setPixelColor(95 + 83, r, g, b);
+      strip.setPixelColor(95 + 84, r, g, b);
+      strip.setPixelColor(95 + 98, r, g, b);
+      strip.setPixelColor(95 + 99, r, g, b);
+      
       strip_2.setPixelColor(10, r, g, b);
       strip_2.setPixelColor(11, r, g, b);
       strip_2.setPixelColor(48, r, g, b);
       strip_2.setPixelColor(49, r, g, b);
     }
+    else if (i == 19) {
+      r = (uint8_t)(v * 140.0);
+      g = 0;
+      b = (uint8_t)(v * 255.0);
+      strip.setPixelColor(17, r, g, b);
+      strip.setPixelColor(7, r, g, b);
+      strip.setPixelColor(95 - 17, r, g, b);
+      strip.setPixelColor(95 - 7, r, g, b);
 
-    else if (i == 4) {
-      r = (uint8_t)(v * 255.0);
-      g = (uint8_t)(v * 150.0);
+      strip.setPixelColor(95 + 14, r, g, b);
+      strip.setPixelColor(95 + 15, r, g, b);
+      strip.setPixelColor(95 + 29, r, g, b);
+      strip.setPixelColor(95 + 30, r, g, b);
+      strip.setPixelColor(95 + 85, r, g, b);
+      strip.setPixelColor(95 + 86, r, g, b);
+      strip.setPixelColor(95 + 100, r, g, b);
+      strip.setPixelColor(95 + 101, r, g, b);
+      
       strip_2.setPixelColor(8, r, g, b);
       strip_2.setPixelColor(9, r, g, b);
       strip_2.setPixelColor(50, r, g, b);
       strip_2.setPixelColor(51, r, g, b);
     }
+    else if (i == 20) {
+      r = (uint8_t)(v * 180.0);
+      g = 0;
+      b = (uint8_t)(v * 255.0);
+      strip.setPixelColor(16, r, g, b);
+      strip.setPixelColor(8, r, g, b);
+      strip.setPixelColor(95 - 16, r, g, b);
+      strip.setPixelColor(95 - 8, r, g, b);
 
-    else if (i == 3) {
-      r = (uint8_t)(v * 255.0);
-      g = (uint8_t)(v * 115.0);
+      strip.setPixelColor(95 + 16, r, g, b);
+      strip.setPixelColor(95 + 17, r, g, b);
+      strip.setPixelColor(95 + 31, r, g, b);
+      strip.setPixelColor(95 + 32, r, g, b);
+      strip.setPixelColor(95 + 87, r, g, b);
+      strip.setPixelColor(95 + 88, r, g, b);
+      strip.setPixelColor(95 + 102, r, g, b);
+      strip.setPixelColor(95 + 103, r, g, b);
+      
       strip_2.setPixelColor(6, r, g, b);
       strip_2.setPixelColor(7, r, g, b);
       strip_2.setPixelColor(52, r, g, b);
       strip_2.setPixelColor(53, r, g, b);
     }
+    else if (i == 21) {
+      r = (uint8_t)(v * 210.0);
+      g = 0;
+      b = (uint8_t)(v * 255.0);
+      strip.setPixelColor(15, r, g, b);
+      strip.setPixelColor(9, r, g, b);
+      strip.setPixelColor(95 - 15, r, g, b);
+      strip.setPixelColor(95 - 9, r, g, b);
 
-    else if (i == 2) {
-      r = (uint8_t)(v * 255.0);
-      g = (uint8_t)(v * 80.0);
+      strip.setPixelColor(95 + 18, r, g, b);
+      strip.setPixelColor(95 + 19, r, g, b);
+      strip.setPixelColor(95 + 33, r, g, b);
+      strip.setPixelColor(95 + 34, r, g, b);
+      strip.setPixelColor(95 + 89, r, g, b);
+      strip.setPixelColor(95 + 90, r, g, b);
+      strip.setPixelColor(95 + 104, r, g, b);
+      strip.setPixelColor(95 + 105, r, g, b);
+      
       strip_2.setPixelColor(4, r, g, b);
       strip_2.setPixelColor(5, r, g, b);
       strip_2.setPixelColor(54, r, g, b);
       strip_2.setPixelColor(55, r, g, b);
     }
+    else if (i == 22) {
+      r = (uint8_t)(v * 230.0);
+      g = 0;
+      b = (uint8_t)(v * 255.0);
+      strip.setPixelColor(14, r, g, b);
+      strip.setPixelColor(10, r, g, b);
+      strip.setPixelColor(95 - 14, r, g, b);
+      strip.setPixelColor(95 - 10, r, g, b);
 
-    else if (i == 1) {
-      r = (uint8_t)(v * 255.0);
-      g = (uint8_t)(v * 45.0);
+      strip.setPixelColor(95 + 20, r, g, b);
+      strip.setPixelColor(95 + 21, r, g, b);
+      strip.setPixelColor(95 + 35, r, g, b);
+      strip.setPixelColor(95 + 36, r, g, b);
+      strip.setPixelColor(95 + 91, r, g, b);
+      strip.setPixelColor(95 + 92, r, g, b);
+      strip.setPixelColor(95 + 106, r, g, b);
+      strip.setPixelColor(95 + 107, r, g, b);
+      
       strip_2.setPixelColor(2, r, g, b);
       strip_2.setPixelColor(3, r, g, b);
       strip_2.setPixelColor(56, r, g, b);
       strip_2.setPixelColor(57, r, g, b);
     }
-
-    else if (i == 0) {
+    else if (i == 23) {
       r = (uint8_t)(v * 255.0);
       g = 0;
+      b = (uint8_t)(v * 255.0);
+      strip.setPixelColor(13, r, g, b);
+      strip.setPixelColor(12, r, g, b);
+      strip.setPixelColor(11, r, g, b);
+      strip.setPixelColor(95 - 13, r, g, b);
+      strip.setPixelColor(95 - 12, r, g, b);
+      strip.setPixelColor(95 - 11, r, g, b);
+
+      strip.setPixelColor(95 + 22, r, g, b);
+      strip.setPixelColor(95 + 23, r, g, b);
+      strip.setPixelColor(95 + 24, r, g, b);
+      strip.setPixelColor(95 + 37, r, g, b);
+      strip.setPixelColor(95 + 38, r, g, b);
+      strip.setPixelColor(95 + 39, r, g, b);
+      strip.setPixelColor(95 + 93, r, g, b);
+      strip.setPixelColor(95 + 94, r, g, b);
+      strip.setPixelColor(95 + 95, r, g, b);
+      strip.setPixelColor(95 + 108, r, g, b);
+      strip.setPixelColor(95 + 109, r, g, b);
+      strip.setPixelColor(95 + 110, r, g, b);
+      
       strip_2.setPixelColor(0, r, g, b);
       strip_2.setPixelColor(1, r, g, b);
       strip_2.setPixelColor(58, r, g, b);
       strip_2.setPixelColor(59, r, g, b);
     }
 
-    strip_2.show();
   }
-}
-
-
-// Maps the 24 bins to the two 48-LED rings that are connected
-void eqVisualizeRings() {
-  int low = 36;   // Can also set this to buflen?  Hard coding for now, would have to treat differently for odd number of pixels
-  int high = 36;  // Both start at 24 + 12 (offset for rings on sides instead of vertical)
-
-  int red = 255.0;
-  int green = 0.0;
-  int blue = 0.0;
-
-  for (int i = 0; i < buflen; i++) {
-    float v = buf[i] / 255.0;
-
-    // strip.setPixelColor(i, (uint8_t)(v * red), (uint8_t)(v * green), (uint8_t)(v * blue));
-    // continue;
-
-
-    if (i == 0) {  // first pixel (it's backwards, I can't remember why I did it like that) has 3, it's the highest frequencies
-      strip.setPixelColor(low, (uint8_t)(v * red), (uint8_t)(v * green), (uint8_t)(v * blue));
-      strip.setPixelColor(LED_COUNT - low - 1, (int)(v * red), (int)(v * green), (int)(v * blue));
-      // strip.setPixelColor(LED_COUNT - low - 1, (int)(v * red), (int)(v * green), (int)(v * blue));
-      low--;
-      high++;
-    } else if (i == buflen - 1) {  // "last" pixel for the lowest frequencies only has 1, it isn't very popular
-      strip.setPixelColor(low, (uint8_t)(v * red), (uint8_t)(v * green), (uint8_t)(v * blue));
-      strip.setPixelColor(LED_COUNT - low - 1, (int)(v * red), (int)(v * green), (int)(v * blue));
-      // strip.setPixelColor(LED_COUNT - low - 1, (uint8_t)(v * red), (uint8_t)(v * green), (uint8_t)(v * blue));
-      break;  // Break so we don't attempt to set pixels below 0 or above our strip length
-    }
-    if (high > 47) {  // Pixel overflow, due to the 12 offset to reorient the rings (high actually wraps around and gets the lowest 1/4 of pixels after the highest 1/4)
-      high -= 48;
-    }
-    strip.setPixelColor(low, (uint8_t)(v * red), (uint8_t)(v * green), (uint8_t)(v * blue));
-    strip.setPixelColor(LED_COUNT - low - 1, (int)(v * red), (int)(v * green), (int)(v * blue));
-    strip.setPixelColor(high, (uint8_t)(v * red), (uint8_t)(v * green), (uint8_t)(v * blue));
-    strip.setPixelColor(LED_COUNT - high, (int)(v * red), (int)(v * green), (int)(v * blue));
-    low--;
-    high++;
-
-    // Checks for changing colors, basically the first block is red with increasing green, then green with increasing blue, then blue with increasing red
-    // These are getting set for the next loop
-    // This only makes sense to me when I had manually mapped the pixels and colors out... maybe that would have been better than converting it to loops and if/else statements...
-    if (i == 6) {
-      green = 255.0;
-    } else if (i == 7) {
-      red = 0.0;
-    } else if (i == 14) {
-      blue = 255.0;
-      green = 200.0;  // Why this, it is maxed then they swap?
-    } else if (i == 15) {
-      green = 0.0;
-    }
-
-    // Incrementing colors when they are between their min and max (0 and 255)
-    if (i >= 0 && i <= 5) {
-      green += 35.0;
-    } else if (i >= 8 && i <= 13) {
-      blue += 35.0;
-    } else if (i >= 16) {
-      red += 35.0;
-    }
-  }
-
+  
   strip.show();
+  strip_2.show();
 }
 
-
-
-// Some functions of our own for creating animated effects -----------------
-
-// Fill strip pixels one after another with a color. Strip is NOT cleared
-// first; anything there will be covered pixel by pixel. Pass in color
-// (as a single 'packed' 32-bit value, which you can get by calling
-// strip.Color(red, green, blue) as shown in the loop() function above),
-// and a delay time (in milliseconds) between pixels.
-// void colorWipe(uint32_t color, int wait) {
-//   for(int i=0; i<strip.numPixels(); i++) { // For each pixel in strip...
-//     strip.setPixelColor(i, color);         //  Set pixel's color (in RAM)
-//     strip.show();                          //  Update strip to match
-//     delay(wait);                           //  Pause for a moment
-//   }
-// }
-
-// // Theater-marquee-style chasing lights. Pass in a color (32-bit value,
-// // a la strip.Color(r,g,b) as mentioned above), and a delay time (in ms)
-// // between frames.
-// void theaterChase(uint32_t color, int wait) {
-//   for(int a=0; a<10; a++) {  // Repeat 10 times...
-//     for(int b=0; b<3; b++) { //  'b' counts from 0 to 2...
-//       strip.clear();         //   Set all pixels in RAM to 0 (off)
-//       // 'c' counts up from 'b' to end of strip in steps of 3...
-//       for(int c=b; c<strip.numPixels(); c += 3) {
-//         strip.setPixelColor(c, color); // Set pixel 'c' to value 'color'
-//       }
-//       strip.show(); // Update strip with new contents
-//       delay(wait);  // Pause for a moment
-//     }
-//   }
-// }
-
-// // Rainbow cycle along whole strip. Pass delay time (in ms) between frames.
-// void rainbow(int wait) {
-//   // Hue of first pixel runs 5 complete loops through the color wheel.
-//   // Color wheel has a range of 65536 but it's OK if we roll over, so
-//   // just count from 0 to 5*65536. Adding 256 to firstPixelHue each time
-//   // means we'll make 5*65536/256 = 1280 passes through this loop:
-//   for(long firstPixelHue = 0; firstPixelHue < 5*65536; firstPixelHue += 256) {
-//     // strip.rainbow() can take a single argument (first pixel hue) or
-//     // optionally a few extras: number of rainbow repetitions (default 1),
-//     // saturation and value (brightness) (both 0-255, similar to the
-//     // ColorHSV() function, default 255), and a true/false flag for whether
-//     // to apply gamma correction to provide 'truer' colors (default true).
-//     strip.rainbow(firstPixelHue);
-//     // Above line is equivalent to:
-//     // strip.rainbow(firstPixelHue, 1, 255, 255, true);
-//     strip.show(); // Update strip with new contents
-//     delay(wait);  // Pause for a moment
-//   }
-// }
-
-// // Rainbow-enhanced theater marquee. Pass delay time (in ms) between frames.
-// void theaterChaseRainbow(int wait) {
-//   int firstPixelHue = 0;     // First pixel starts at red (hue 0)
-//   for(int a=0; a<30; a++) {  // Repeat 30 times...
-//     for(int b=0; b<3; b++) { //  'b' counts from 0 to 2...
-//       strip.clear();         //   Set all pixels in RAM to 0 (off)
-//       // 'c' counts up from 'b' to end of strip in increments of 3...
-//       for(int c=b; c<strip.numPixels(); c += 3) {
-//         // hue of pixel 'c' is offset by an amount to make one full
-//         // revolution of the color wheel (range 65536) along the length
-//         // of the strip (strip.numPixels() steps):
-//         int      hue   = firstPixelHue + c * 65536L / strip.numPixels();
-//         uint32_t color = strip.gamma32(strip.ColorHSV(hue)); // hue -> RGB
-//         strip.setPixelColor(c, color); // Set pixel 'c' to value 'color'
-//       }
-//       strip.show();                // Update strip with new contents
-//       delay(wait);                 // Pause for a moment
-//       firstPixelHue += 65536 / 90; // One cycle of color wheel over 90 frames
-//     }
-//   }
-// }

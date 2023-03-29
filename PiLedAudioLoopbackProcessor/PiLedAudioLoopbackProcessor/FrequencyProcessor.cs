@@ -78,7 +78,7 @@ namespace PiLedAudioLoopbackProcessor
                 if (smooth.Count > vertical_smoothness)
                     smooth.RemoveAt(0);
             }
-            FrequencySplitter.ProcessBins_RING(values.Select(x => x.Magnitude).ToArray());
+            FrequencySplitterSerial.ProcessBins_RING(values.Select(x => x.Magnitude).ToArray());
             //Draw();
             //foreach (var ts in toSend)
             //{

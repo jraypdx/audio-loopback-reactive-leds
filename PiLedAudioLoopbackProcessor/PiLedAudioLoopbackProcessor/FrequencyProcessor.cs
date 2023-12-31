@@ -5,6 +5,7 @@ using System.Numerics;
 using MathNet.Numerics.IntegralTransforms;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Tasks;
 
 namespace PiLedAudioLoopbackProcessor
 {
@@ -58,17 +59,51 @@ namespace PiLedAudioLoopbackProcessor
             capture.StartRecording();
         }
 
-        public void DataAvailable(object sender, WaveInEventArgs e)
+        public async void DataAvailable(object sender, WaveInEventArgs e)
         {
             buffer = new WaveBuffer(e.Buffer); // save the buffer in the class variable
 
             int len = buffer.FloatBuffer.Length / 8;
+            var ms = 20;
 
             // fft
             values = new Complex[len];
             for (int i = 0; i < len; i++)
                 values[i] = new Complex(buffer.FloatBuffer[i], 0.0);
-            Fourier.Forward(values, FourierOptions.Default);
+            var chunk = len / 2;
+            var v1 = values.Take(chunk).ToArray();
+            var v2 = values.Skip(chunk).Take(chunk).ToArray();
+            //var v3 = values.Skip(chunk * 2).Take(chunk).ToArray();
+            //var v4 = values.Skip(chunk * 3).Take(chunk).ToArray();
+            //var v5 = values.Skip(chunk * 4).Take(chunk).ToArray();
+            //var v6 = values.Skip(chunk * 5).Take(chunk).ToArray();
+            //var v7 = values.Skip(chunk * 6).Take(chunk).ToArray();
+            //var v8 = values.Skip(chunk * 7).Take(chunk).ToArray();
+            //Fourier.Forward(values, FourierOptions.InverseExponent);
+            Fourier.Forward(v1, FourierOptions.InverseExponent);
+            FrequencySplitterSerial.ProcessBins_RING(v1.Select(x => x.Magnitude).ToArray());
+            await Task.Delay(ms);
+            Fourier.Forward(v2, FourierOptions.InverseExponent);
+            FrequencySplitterSerial.ProcessBins_RING(v2.Select(x => x.Magnitude).ToArray());
+            await Task.Delay(ms);
+            //Fourier.Forward(v3, FourierOptions.InverseExponent);
+            //FrequencySplitterSerial.ProcessBins_RING(v3.Select(x => x.Magnitude).ToArray());
+            //await Task.Delay(ms);
+            //Fourier.Forward(v4, FourierOptions.InverseExponent);
+            //FrequencySplitterSerial.ProcessBins_RING(v4.Select(x => x.Magnitude).ToArray());
+            //await Task.Delay(ms);
+            //Fourier.Forward(v5, FourierOptions.InverseExponent);
+            //FrequencySplitterSerial.ProcessBins_RING(v5.Select(x => x.Magnitude).ToArray());
+            //await Task.Delay(ms);
+            //Fourier.Forward(v6, FourierOptions.InverseExponent);
+            //FrequencySplitterSerial.ProcessBins_RING(v6.Select(x => x.Magnitude).ToArray());
+            //await Task.Delay(ms);
+            //Fourier.Forward(v7, FourierOptions.InverseExponent);
+            //FrequencySplitterSerial.ProcessBins_RING(v7.Select(x => x.Magnitude).ToArray());
+            //await Task.Delay(ms);
+            //Fourier.Forward(v8, FourierOptions.InverseExponent);
+            //FrequencySplitterSerial.ProcessBins_RING(v8.Select(x => x.Magnitude).ToArray());
+            //await Task.Delay(ms);
 
             //FrequencySplitter.ProcessBins(values.Select(x => x.Magnitude).ToArray());
             //shift array
@@ -78,7 +113,38 @@ namespace PiLedAudioLoopbackProcessor
                 if (smooth.Count > vertical_smoothness)
                     smooth.RemoveAt(0);
             }
-            FrequencySplitterSerial.ProcessBins_RING(values.Select(x => x.Magnitude).ToArray());
+
+            //var mag = values.Select(x => x.Magnitude);
+            //var chunkSize = mag.Count() / 2;
+            //var x1 = mag.Take(chunkSize).ToArray();
+            //var x2 = mag.Skip(chunkSize).Take(chunkSize).ToArray();
+            //var x3 = mag.Skip(chunkSize * 2).Take(chunkSize).ToArray();
+            //var x4 = mag.Skip(chunkSize * 3).Take(chunkSize).ToArray();
+            //var x5 = mag.Skip(chunkSize * 4).Take(chunkSize).ToArray();
+            //var x6 = mag.Skip(chunkSize * 5).Take(chunkSize).ToArray();
+            //var x7 = mag.Skip(chunkSize * 6).Take(chunkSize).ToArray();
+            //var x8 = mag.Skip(chunkSize * 7).Take(chunkSize).ToArray();
+            //FrequencySplitterSerial.ProcessBins_RING(x1);
+            ////await Task.Delay(10);
+            //FrequencySplitterSerial.ProcessBins_RING(x2);
+            ////await Task.Delay(10);
+            //FrequencySplitterSerial.ProcessBins_RING(x3);
+            ////await Task.Delay(10);
+            //FrequencySplitterSerial.ProcessBins_RING(x4);
+            ////await Task.Delay(10);
+            //FrequencySplitterSerial.ProcessBins_RING(x5);
+            //FrequencySplitterSerial.ProcessBins_RING(x6);
+            //FrequencySplitterSerial.ProcessBins_RING(x7);
+            //FrequencySplitterSerial.ProcessBins_RING(x8);
+            //FrequencySplitterSerial.ProcessBins_RING(v1.Select(x => x.Magnitude).ToArray());
+            //await Task.Delay(16);
+            //FrequencySplitterSerial.ProcessBins_RING(v2.Select(x => x.Magnitude).ToArray());
+            //await Task.Delay(16);
+            //FrequencySplitterSerial.ProcessBins_RING(v3.Select(x => x.Magnitude).ToArray());
+            //await Task.Delay(16);
+            //FrequencySplitterSerial.ProcessBins_RING(v4.Select(x => x.Magnitude).ToArray());
+            //await Task.Delay(10);
+            //FrequencySplitterSerial.ProcessBins_RING(values.Select(x => x.Magnitude).ToArray());
             //Draw();
             //foreach (var ts in toSend)
             //{

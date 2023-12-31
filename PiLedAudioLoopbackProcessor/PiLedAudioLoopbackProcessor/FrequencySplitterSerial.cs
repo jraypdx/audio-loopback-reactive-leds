@@ -13,21 +13,64 @@ namespace PiLedAudioLoopbackProcessor
     {
         public static double[] processed = new double[9];
         public static double[] processed_ring = new double[24];
+        public static double[] processed_60 = new double[60];
         public static double[] lastProcessed = new double[9];
         public static double[] lastProcessed_ring = new double[24];
+        public static double[] lastProcessed_60 = new double[24];
         public static double peak = 5.0;
         //public static UdpClient udpClient = new UdpClient();
         public static SerialPort serial = new SerialPort(SerialPort.GetPortNames()[0], 152000, Parity.None, 8, StopBits.One);
         public static bool isOpen = false;
-        
 
+
+
+        public static void ProcessBins_60(double[] toSplit) // Testing a new mappaing with 60 bins - didn't work out very well... but leaving in if I want to try again
+        {
+            //Console.Write(toSplit.Count());
+            processed_60 = toSplit.Take(60).ToArray();
+
+            double inverseMax = 1 / processed_60.Max();
+            if (processed_60.Max() > peak)
+                peak = processed_60.Max();
+            else
+                peak = peak * 0.9 + processed_60.Max() * 0.1;
+            double inversePeak = 1 / peak;
+
+            for (int i = 0; i < 24; i++)
+            {
+                processed_60[i] = processed_60[i] *= inversePeak;
+                if (processed_60[i] > 1.0)
+                {
+                    //Console.WriteLine(i + "   " + processed_ring[i]);
+                    processed_60[i] = 1.0;
+                }
+                else if (processed_60[i] < lastProcessed_60[i])
+                    processed_60[i] = lastProcessed_60[i] *= 0.85;
+            }
+
+            lastProcessed_60 = processed_60;
+            SendBins(processed_60);
+        }
 
         public static void ProcessBins_RING(double[] toSplit)
         {
-            int counter = 0;
-            for (int i = 0; i < 32; i++)
+            //Console.Write(toSplit.Count());
+            //processed_ring = toSplit.Skip(2).Take(24).ToArray();
+            int counter = 5;
+            processed_ring[0] = toSplit[2] * 0.75; // The sine bass LEDs need a bit of tuning or they overwhelm the rest
+            processed_ring[1] = toSplit[3] * 0.825;
+            processed_ring[2] = toSplit[4] * 0.9;
+            processed_ring[3] = toSplit[5] * 0.925;
+            processed_ring[4] = toSplit[6] * 0.975;
+            for (int i = 7; i < 80; i++)
             {
-                if (i >= 16)
+                if (counter > 23) { break; }
+                if (i >= 20)
+                {
+                    processed_ring[counter] = (toSplit[i] + toSplit[i + 1] + toSplit[i + 2]) * 0.33333;
+                    i += 2;
+                }
+                else if (i >= 12)
                 {
                     processed_ring[counter] = (toSplit[i] + toSplit[i + 1]) * 0.5;
                     i++;
@@ -41,7 +84,7 @@ namespace PiLedAudioLoopbackProcessor
             if (processed_ring.Max() > peak)
                 peak = processed_ring.Max();
             else
-                peak *= 0.95;
+                peak = peak * 0.95 + processed_ring.Max() * 0.05;
             double inversePeak = 1 / peak;
 
             for (int i = 0; i < 24; i++)
@@ -52,8 +95,10 @@ namespace PiLedAudioLoopbackProcessor
                     //Console.WriteLine(i + "   " + processed_ring[i]);
                     processed_ring[i] = 1.0;
                 }
+                else if (processed_ring[i] < 0.1)
+                    processed_ring[i] = 0.0;
                 else if (processed_ring[i] < lastProcessed_ring[i])
-                    processed_ring[i] = lastProcessed_ring[i] *= 0.75;
+                    processed_ring[i] = lastProcessed_ring[i] *= 0.8;// + processed_ring[i] * 0.1;
             }
             
             lastProcessed_ring = processed_ring;
